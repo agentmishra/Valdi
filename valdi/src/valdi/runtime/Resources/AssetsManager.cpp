@@ -33,6 +33,7 @@
 #include "valdi_core/cpp/Utils/StringCache.hpp"
 #include "valdi_core/cpp/Utils/Trace.hpp"
 #include "valdi_core/cpp/Utils/ValueArray.hpp"
+#include "valdi_core/cpp/Utils/ValueTypedArray.hpp"
 
 #include "valdi_core/AssetLoadObserver.hpp"
 
@@ -638,7 +639,20 @@ void AssetsManager::notifyAssetConsumer(AssetsManagerTransaction& transaction,
         errorStringBox = {errorString};
     }
 
-    assetConsumer->getObserver()->onLoad(observable, Value(loadedAsset), errorStringBox);
+    // Convert BytesAsset to ValueTypedArray for proper JavaScript marshalling
+    Value assetValue;
+    if (loadedAsset != nullptr) {
+        auto bytesContentResult = loadedAsset->getBytesContent();
+        if (bytesContentResult) {
+            // This is a bytes asset - wrap in ValueTypedArray
+            assetValue = Value(makeShared<ValueTypedArray>(TypedArrayType::Uint8Array, bytesContentResult.value()));
+        } else {
+            // Not a bytes asset, send as-is
+            assetValue = Value(loadedAsset);
+        }
+    }
+
+    assetConsumer->getObserver()->onLoad(observable, assetValue, errorStringBox);
 
     transaction.acquireLock();
 }
